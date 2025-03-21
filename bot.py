@@ -73,7 +73,13 @@ def handle_receipt(message):
 def handle_admin_approval(call):
     admin_id = call.from_user.id
     if admin_id == ADMIN_ID:
-        user_id_str = parts[1] + "_" + parts[2]
+      parts = call.data.split("-")
+        if len(parts) == 3:
+            action_prefix, action_type, user_id_str = parts
+            action = action_prefix + "-" + action_type # برای حفظ "admin-confirm" یا "admin-reject"
+        else:
+            print(f"Callback data غیرمنتظره: {call.data}")
+            return
         user_id_to_process = int(user_id_str)
         print(f"Admin action: {action}, User ID to process: {user_id_to_process}, Current data: {user_purchase_data}") # لاگ اضافه شده
 
