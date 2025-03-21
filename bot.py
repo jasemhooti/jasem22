@@ -71,6 +71,15 @@ def handle_receipt(message):
 # --- هندلر برای دکمه‌های تایید و رد ادمین ---
 @bot.callback_query_handler(func=lambda call: call.data.startswith("admin_confirm_") or call.data.startswith("admin_reject_"))
 def handle_admin_approval(call):
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("admin_confirm_") or call.data.startswith("admin_reject_"))
+def handle_admin_approval(call):
+    print(f"Callback data دریافت شده: {call.data}")  # این خط را اضافه کنید
+    admin_id = call.from_user.id
+    if admin_id == ADMIN_ID:
+        action, user_id_str = call.data.split("_", 2)
+        user_id_to_process = int(user_id_str)
+        print(f"Admin action: {action}, User ID to process: {user_id_to_process}, Current data: {user_purchase_data}") # لاگ قبلی
+        # ... بقیه کد ...
     admin_id = call.from_user.id
     if admin_id == ADMIN_ID:
       user_id_str = parts[1] + "_" + parts[2] # فرض میکنیم فقط یک علامت _ اضافی وجود دارد
