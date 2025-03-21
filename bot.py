@@ -75,6 +75,7 @@ def handle_admin_approval(call):
     if admin_id == ADMIN_ID:
         action, user_id_str = call.data.split("_", 2)
         user_id_to_process = int(user_id_str)
+        print(f"Admin action: {action}, User ID to process: {user_id_to_process}, Current data: {user_purchase_data}") # لاگ اضافه شده
 
         if action == "admin_confirm":
             if user_id_to_process in user_purchase_data and "selected_config" in user_purchase_data[user_id_to_process] and "receipt_received" in user_purchase_data[user_id_to_process]:
@@ -140,11 +141,15 @@ def handle_admin_approval(call):
                 bot.answer_callback_query(call.id, "اطلاعات خرید این کاربر یافت نشد یا هنوز رسیدی ارسال نکرده است.")
 
         elif action == "admin_reject":
+            print(f"Reject action for user ID: {user_id_to_process}") # لاگ اضافه شده قبل از شرط
             if user_id_to_process in user_purchase_data:
+                print(f"User ID {user_id_to_process} found in user_purchase_data for rejection.") # لاگ اضافه شده
                 bot.send_message(user_id_to_process, "متاسفانه خرید شما رد شد. برای اطلاعات بیشتر با ادمین تماس بگیرید.")
                 bot.answer_callback_query(call.id, f"خرید کاربر {user_id_to_process} رد شد.")
                 del user_purchase_data[user_id_to_process]
+                print(f"User data for {user_id_to_process} deleted.") # لاگ اضافه شده بعد از حذف
             else:
+                print(f"User ID {user_id_to_process} NOT found in user_purchase_data for rejection.") # لاگ اضافه شده
                 bot.answer_callback_query(call.id, "اطلاعات خرید این کاربر یافت نشد.")
     else:
         bot.answer_callback_query(call.id, "شما مجوز انجام این کار را ندارید.")
