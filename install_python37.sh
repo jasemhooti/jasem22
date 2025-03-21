@@ -1,32 +1,38 @@
-# Update package list
-sudo apt update
+#!/bin/bash
 
-# Install required dependencies
-sudo apt install software-properties-common -y
+# خروج در صورت بروز خطا
+set -e
 
-# Add deadsnakes PPA for Python versions
-sudo add-apt-repository ppa:deadsnakes/ppa -y
+# پیام خوشامدگویی
+echo "شروع فرآیند نصب Python 3.7 در سرور اوبونتو..."
 
-# Update package list again
-sudo apt update
+# آپدیت پکیج‌ها
+sudo apt update -y
+sudo apt upgrade -y
 
-# Install Python 3.7
-sudo apt install python3.7 -y
+# نصب پیش‌نیازها برای کامپایل پایتون
+sudo apt install -y build-essential zlib1g-dev \
+    libncurses5-dev libgdbm-dev libnss3-dev libssl-dev \
+    libreadline-dev libffi-dev curl
 
-# Install dependencies for pip
-sudo apt install curl python3-distutils -y
+# دانلود و اکسترکت سورس پایتون ۳.۷
+cd /usr/src
+sudo curl -O https://www.python.org/ftp/python/3.7.17/Python-3.7.17.tgz
+sudo tar xzf Python-3.7.17.tgz
 
-# Download and install pip for Python 3.7
-curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-python3.7 get-pip.py
+# کامپایل و نصب Python 3.7
+cd Python-3.7.17
+sudo ./configure --enable-optimizations
+sudo make -j$(nproc)
+sudo make altinstall
 
-# Cleanup
-rm get-pip.py
-
-# Add pip to PATH (optional)
-echo "export PATH=\$PATH:~/.local/bin" >> ~/.bashrc
-source ~/.bashrc
-
-# Verify installations
+# بررسی نسخه پایتون نصب شده
 python3.7 --version
-pip3 --version
+
+# نصب pip برای پایتون 3.7
+curl -sS https://bootstrap.pypa.io/get-pip.py | python3.7
+
+# بررسی نصب pip
+python3.7 -m pip --version
+
+echo "✅ Python 3.7 و pip با موفقیت نصب شدند!"
