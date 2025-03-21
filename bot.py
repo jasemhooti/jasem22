@@ -73,7 +73,7 @@ def handle_receipt(message):
 def handle_admin_approval(call):
     admin_id = call.from_user.id
     if admin_id == ADMIN_ID:
-        action, user_id_str = call.data.split("_", 2)
+        user_id_str = parts[1] + "_" + parts[2]
         user_id_to_process = int(user_id_str)
         print(f"Admin action: {action}, User ID to process: {user_id_to_process}, Current data: {user_purchase_data}") # لاگ اضافه شده
 
