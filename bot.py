@@ -50,11 +50,17 @@ def handle_receipt(message):
         selected_config_id = user_purchase_data[chat_id]["selected_config"]
         config_name = CONFIGS[selected_config_id]["name"]
         config_price = CONFIGS[selected_config_id]["price"]
+        user_id = message.from_user.id
 
-        # ارسال پیام به ادمین
-        caption_admin = f"کاربر با آیدی {chat_id} درخواست خرید حجم {config_name} به قیمت {config_price} تومان را دارد."
-        bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=caption_admin)
-        bot.send_message(ADMIN_ID, f"آیدی کاربر: {chat_id}")
+        # ایجاد دکمه‌های تایید و رد
+        markup_admin = types.InlineKeyboardMarkup(row_width=2)
+        btn_confirm = types.InlineKeyboardButton("✅ تایید", callback_data=f"admin_confirm_{user_id}")
+        btn_reject = types.InlineKeyboardButton("❌ رد", callback_data=f"admin_reject_{user_id}")
+        markup_admin.add(btn_confirm, btn_reject)
+
+        # ارسال پیام به ادمین همراه با عکس و دکمه‌ها
+        caption_admin = f"کاربر با آیدی {user_id} درخواست خرید حجم {config_name} به قیمت {config_price} تومان را دارد."
+        bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=caption_admin, reply_markup=markup_admin)
 
         # اطلاع رسانی به کاربر
         bot.send_message(chat_id, "رسید شما دریافت شد. منتظر تایید ادمین باشید.")
@@ -62,77 +68,86 @@ def handle_receipt(message):
     else:
         bot.send_message(chat_id, "لطفاً ابتدا یک حجم را انتخاب کنید.")
 
-# --- هندلر دستور تایید خرید برای ادمین ---
-@bot.message_handler(func=lambda message: message.from_user.id == ADMIN_ID and message.text.startswith("/confirm_"))
-def confirm_purchase(message):
-    try:
-        user_id_to_confirm = int(message.text.split("_")[1])
-        if user_id_to_confirm in user_purchase_data and "selected_config" in user_purchase_data[user_id_to_confirm] and "receipt_received" in user_purchase_data[user_id_to_confirm]:
-            selected_config_id = user_purchase_data[user_id_to_confirm]["selected_config"]
-            config_name = CONFIGS[selected_config_id]["name"]
-            config_type = CONFIGS[selected_config_id]["type"]
-            config_limit = CONFIGS[selected_config_id]["limit"]
+# --- هندلر برای دکمه‌های تایید و رد ادمین ---
+@bot.callback_query_handler(func=lambda call: call.data.startswith("admin_confirm_") or call.data.startswith("admin_reject_"))
+def handle_admin_approval(call):
+    admin_id = call.from_user.id
+    if admin_id == ADMIN_ID:
+        action, user_id_str = call.data.split("_", 2)
+        user_id_to_process = int(user_id_str)
 
-            # --- قسمت ساخت کانفیگ در پنل XUI ---
-            try:
-                session = requests.Session()
-                login_data = {"username": XUI_USERNAME, "password": XUI_PASSWORD}
-                session.post(f"{XUI_PANEL_URL}/login", data=login_data, verify=False)
+        if action == "admin_confirm":
+            if user_id_to_process in user_purchase_data and "selected_config" in user_purchase_data[user_id_to_process] and "receipt_received" in user_purchase_data[user_id_to_process]:
+                selected_config_id = user_purchase_data[user_id_to_process]["selected_config"]
+                config_name = CONFIGS[selected_config_id]["name"]
+                config_type = CONFIGS[selected_config_id]["type"]
+                config_limit = CONFIGS[selected_config_id]["limit"]
 
-                add_client_data = {
-                    "up": 0,
-                    "down": 0,
-                    "total": config_limit,
-                    "expireDay": 0,
-                    "listen": "",
-                    "port": "",  # پورت اشتراکی
-                    "protocol": "vless",
-                    "settings": '{"clients": [{"id": "'+str(user_id_to_confirm)+'", "flow": "xtls-rprx-vision", "encryption": "none", "host": "", "port": 443, "path": "/"}], "decryption": "none", "fallbacks":}',
-                    "streamSettings": '{"network": "ws", "security": "tls", "tlsSettings": {"alpn": ["h2", "http/1.1"], "serverName": "'+XUI_PANEL_URL.split("//")[1].split(":")[0]+'"}, "wsSettings": {"path": "/"}}',
-                    "sniffing": False,
-                    "server_id": "1", # ممکن است نیاز به تنظیم داشته باشد
-                    "remark": f"{config_name} - UserID: {user_id_to_confirm}",
-                    "enable": True
-                }
-                response = session.post(f"{XUI_PANEL_URL}/panel/api/inbound/addClient", json=add_client_data, verify=False)
-                response.raise_for_status()
-                result = response.json()
+                try:
+                    session = requests.Session()
+                    login_data = {"username": XUI_USERNAME, "password": XUI_PASSWORD}
+                    session.post(f"{XUI_PANEL_URL}/login", data=login_data, verify=False)
 
-                if result and result["success"]:
-                    # --- دریافت اطلاعات کانفیگ ---
-                    response = session.get(f"{XUI_PANEL_URL}/panel/api/inbound/list", params={"server_id": "1"}, verify=False)
+                    add_client_data = {
+                        "up": 0,
+                        "down": 0,
+                        "total": config_limit,
+                        "expireDay": 0,
+                        "listen": "",
+                        "port": "",  # پورت اشتراکی
+                        "protocol": "vless",
+                        "settings": '{"clients": [{"id": "'+str(user_id_to_process)+'", "flow": "xtls-rprx-vision", "encryption": "none", "host": "", "port": 443, "path": "/"}], "decryption": "none", "fallbacks":}',
+                        "streamSettings": '{"network": "ws", "security": "tls", "tlsSettings": {"alpn": ["h2", "http/1.1"], "serverName": "'+XUI_PANEL_URL.split("//")[1].split(":")[0]+'"}, "wsSettings": {"path": "/"}}',
+                        "sniffing": False,
+                        "server_id": "1", # ممکن است نیاز به تنظیم داشته باشد
+                        "remark": f"{config_name} - UserID: {user_id_to_process}",
+                        "enable": True
+                    }
+                    response = session.post(f"{XUI_PANEL_URL}/panel/api/inbound/addClient", json=add_client_data, verify=False)
                     response.raise_for_status()
-                    inbounds = response.json()["obj"]
-                    inbound_id = None
-                    for inbound in inbounds:
-                        if inbound["protocol"] == "vless" and inbound["streamSettings"]["network"] == "ws":
-                            inbound_id = inbound["id"]
-                            break
+                    result = response.json()
 
-                    if inbound_id:
-                        config_link = f"vless://{user_id_to_confirm}@{XUI_PANEL_URL.split('//')[1]}:443?path=%2F&security=tls&sni={XUI_PANEL_URL.split('//')[1].split(':')[0]}&type=ws# خریداری_شده"
-                        bot.send_message(user_id_to_confirm, f"خرید شما تایید شد.\n\nکانفیگ {config_name} شما:\n`{config_link}`\n\nبا تشکر از خرید شما!", parse_mode="Markdown")
-                        bot.send_message(ADMIN_ID, f"خرید کاربر {user_id_to_confirm} با حجم {config_name} تایید و کانفیگ برای او ارسال شد.")
-                        del user_purchase_data[user_id_to_confirm]
+                    if result and result["success"]:
+                        response = session.get(f"{XUI_PANEL_URL}/panel/api/inbound/list", params={"server_id": "1"}, verify=False)
+                        response.raise_for_status()
+                        inbounds = response.json()["obj"]
+                        inbound_id = None
+                        for inbound in inbounds:
+                            if inbound["protocol"] == "vless" and inbound["streamSettings"]["network"] == "ws":
+                                inbound_id = inbound["id"]
+                                break
+
+                        if inbound_id:
+                            config_link = f"vless://{user_id_to_process}@{XUI_PANEL_URL.split('//')[1]}:443?path=%2F&security=tls&sni={XUI_PANEL_URL.split('//')[1].split(':')[0]}&type=ws# خریداری_شده"
+                            bot.send_message(user_id_to_process, f"خرید شما تایید شد.\n\nکانفیگ {config_name} شما:\n`{config_link}`\n\nبا تشکر از خرید شما!", parse_mode="Markdown")
+                            bot.answer_callback_query(call.id, f"خرید کاربر {user_id_to_process} با حجم {config_name} تایید و کانفیگ برای او ارسال شد.")
+                            del user_purchase_data[user_id_to_process]
+                        else:
+                            bot.send_message(user_id_to_process, "متاسفانه در دریافت لینک کانفیگ مشکلی پیش آمده است. لطفاً به ادمین پیام دهید.")
+                            bot.answer_callback_query(call.id, "خطا در دریافت لینک کانفیگ.")
+
                     else:
-                        bot.send_message(user_id_to_confirm, "متاسفانه در دریافت لینک کانفیگ مشکلی پیش آمده است. لطفاً به ادمین پیام دهید.")
-                        bot.send_message(ADMIN_ID, f"خطا در دریافت لینک کانفیگ برای کاربر {user_id_to_confirm}")
+                        bot.send_message(user_id_to_process, "متاسفانه در ساخت کانفیگ مشکلی پیش آمده است. لطفاً به ادمین پیام دهید.")
+                        bot.answer_callback_query(call.id, f"خطا در ساخت کانفیگ: {result.get('msg', 'بدون جزئیات')}")
 
-                else:
-                    bot.send_message(user_id_to_confirm, "متاسفانه در ساخت کانفیگ مشکلی پیش آمده است. لطفاً به ادمین پیام دهید.")
-                    bot.send_message(ADMIN_ID, f"خطا در ساخت کانفیگ برای کاربر {user_id_to_confirm}: {result.get('msg', 'بدون جزئیات')}")
+                except requests.exceptions.RequestException as e:
+                    bot.send_message(user_id_to_process, "متاسفانه در ارتباط با پنل مشکلی پیش آمده است. لطفاً به ادمین پیام دهید.")
+                    bot.answer_callback_query(call.id, f"خطا در ارتباط با پنل XUI: {e}")
+                except Exception as e:
+                    bot.send_message(user_id_to_process, "متاسفانه یک خطای غیرمنتظره رخ داده است. لطفاً به ادمین پیام دهید.")
+                    bot.answer_callback_query(call.id, f"خطای غیرمنتظره در تایید خرید: {e}")
+            else:
+                bot.answer_callback_query(call.id, "اطلاعات خرید این کاربر یافت نشد یا هنوز رسیدی ارسال نکرده است.")
 
-            except requests.exceptions.RequestException as e:
-                bot.send_message(user_id_to_confirm, "متاسفانه در ارتباط با پنل مشکلی پیش آمده است. لطفاً به ادمین پیام دهید.")
-                bot.send_message(ADMIN_ID, f"خطا در ارتباط با پنل XUI برای کاربر {user_id_to_confirm}: {e}")
-            except Exception as e:
-                bot.send_message(user_id_to_confirm, "متاسفانه یک خطای غیرمنتظره رخ داده است. لطفاً به ادمین پیام دهید.")
-                bot.send_message(ADMIN_ID, f"خطای غیرمنتظره در تایید خرید برای کاربر {user_id_to_confirm}: {e}")
-
-        else:
-            bot.send_message(ADMIN_ID, "اطلاعات خرید این کاربر یافت نشد یا هنوز رسیدی ارسال نکرده است.")
-    except ValueError:
-        bot.send_message(ADMIN_ID, "فرمت دستور تایید خرید اشتباه است. لطفاً از فرمت `/confirm_آیدی_کاربر` استفاده کنید.")
+        elif action == "admin_reject":
+            if user_id_to_process in user_purchase_data:
+                bot.send_message(user_id_to_process, "متاسفانه خرید شما رد شد. برای اطلاعات بیشتر با ادمین تماس بگیرید.")
+                bot.answer_callback_query(call.id, f"خرید کاربر {user_id_to_process} رد شد.")
+                del user_purchase_data[user_id_to_process]
+            else:
+                bot.answer_callback_query(call.id, "اطلاعات خرید این کاربر یافت نشد.")
+    else:
+        bot.answer_callback_query(call.id, "شما مجوز انجام این کار را ندارید.")
 
 # --- اجرای ربات ---
 if __name__ == '__main__':
